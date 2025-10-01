@@ -13,6 +13,10 @@ terraform {
       source  = "hashicorp/local"
       version = "~> 2.4"
     }
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.2"
+    }
   }
 }
 
@@ -32,67 +36,77 @@ resource "aws_organizations_account" "developer_account" {
   }
 
   lifecycle {
-    prevent_destroy = false
+    prevent_destroy = true
   }
 }
 
 # Wait for account to be fully provisioned and role to be available
 resource "time_sleep" "account_setup" {
   depends_on      = [aws_organizations_account.developer_account]
-  create_duration = "60s"  # Extended to ensure role propagation
+  create_duration = "60s"
 }
 
-# Use null_resource with local-exec to configure the target account
-# This avoids the provider configuration chicken-and-egg problem
+# Configure account resources using AWS CLI with assumed role
 resource "null_resource" "configure_account" {
   depends_on = [time_sleep.account_setup]
   
   triggers = {
     account_id = aws_organizations_account.developer_account.id
-    always_run = timestamp()  # Remove this after testing
+    always_run = timestamp()
   }
   
-  # Create S3 state bucket
   provisioner "local-exec" {
     command = <<-EOT
+      set -e
+      
+      echo "Assuming role in account ${aws_organizations_account.developer_account.id}..."
+      CREDS=$(aws sts assume-role \
+        --role-arn arn:aws:iam::${aws_organizations_account.developer_account.id}:role/OrganizationAccountAccessRole \
+        --role-session-name terraform-setup \
+        --duration-seconds 3600 \
+        --output json)
+      
+      export AWS_ACCESS_KEY_ID=$(echo $CREDS | jq -r '.Credentials.AccessKeyId')
+      export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | jq -r '.Credentials.SecretAccessKey')
+      export AWS_SESSION_TOKEN=$(echo $CREDS | jq -r '.Credentials.SessionToken')
+      
+      echo "Creating S3 bucket..."
       aws s3api create-bucket \
         --bucket bose-dev-${var.developer_name}-terraform-state \
         --region ${var.aws_region} \
-        $(if [ "${var.aws_region}" != "us-west-2" ]; then echo "--create-bucket-configuration LocationConstraint=${var.aws_region}"; fi) \
-        --role-arn arn:aws:iam::${aws_organizations_account.developer_account.id}:role/OrganizationAccountAccessRole || true
+        $(if [ "${var.aws_region}" != "us-east-1" ]; then echo "--create-bucket-configuration LocationConstraint=${var.aws_region}"; fi) || echo "Bucket may already exist"
       
+      echo "Enabling versioning..."
       aws s3api put-bucket-versioning \
         --bucket bose-dev-${var.developer_name}-terraform-state \
-        --versioning-configuration Status=Enabled \
-        --role-arn arn:aws:iam::${aws_organizations_account.developer_account.id}:role/OrganizationAccountAccessRole || true
+        --versioning-configuration Status=Enabled
       
+      echo "Enabling encryption..."
       aws s3api put-bucket-encryption \
         --bucket bose-dev-${var.developer_name}-terraform-state \
-        --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}' \
-        --role-arn arn:aws:iam::${aws_organizations_account.developer_account.id}:role/OrganizationAccountAccessRole || true
+        --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
       
+      echo "Blocking public access..."
       aws s3api put-public-access-block \
         --bucket bose-dev-${var.developer_name}-terraform-state \
-        --public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true" \
-        --role-arn arn:aws:iam::${aws_organizations_account.developer_account.id}:role/OrganizationAccountAccessRole || true
-    EOT
-  }
-  
-  # Create DynamoDB lock table
-  provisioner "local-exec" {
-    command = <<-EOT
+        --public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
+      
+      echo "Creating DynamoDB table..."
       aws dynamodb create-table \
         --table-name bose-dev-${var.developer_name}-terraform-locks \
         --attribute-definitions AttributeName=LockID,AttributeType=S \
         --key-schema AttributeName=LockID,KeyType=HASH \
         --billing-mode PAY_PER_REQUEST \
-        --region ${var.aws_region} \
-        --role-arn arn:aws:iam::${aws_organizations_account.developer_account.id}:role/OrganizationAccountAccessRole || true
+        --region ${var.aws_region} || echo "Table may already exist"
+      
+      echo "Account configuration complete!"
     EOT
+    
+    interpreter = ["/bin/bash", "-c"]
   }
 }
 
-# Create IAM permission boundary using AWS CLI
+# Create IAM permission boundary
 resource "null_resource" "create_permission_boundary" {
   depends_on = [null_resource.configure_account]
   
@@ -103,21 +117,31 @@ resource "null_resource" "create_permission_boundary" {
   
   provisioner "local-exec" {
     command = <<-EOT
-      # Create the policy document
-      cat > /tmp/permission-boundary-${var.developer_name}.json << 'EOF'
-${local.permission_boundary_policy}
-EOF
+      set -e
       
-      # Create the policy in the target account
+      CREDS=$(aws sts assume-role \
+        --role-arn arn:aws:iam::${aws_organizations_account.developer_account.id}:role/OrganizationAccountAccessRole \
+        --role-session-name terraform-setup \
+        --output json)
+      
+      export AWS_ACCESS_KEY_ID=$(echo $CREDS | jq -r '.Credentials.AccessKeyId')
+      export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | jq -r '.Credentials.SecretAccessKey')
+      export AWS_SESSION_TOKEN=$(echo $CREDS | jq -r '.Credentials.SessionToken')
+      
+      cat > /tmp/permission-boundary-${var.developer_name}.json << 'POLICY'
+${local.permission_boundary_policy}
+POLICY
+      
+      echo "Creating permission boundary policy..."
       aws iam create-policy \
         --policy-name DeveloperPermissionBoundary \
         --policy-document file:///tmp/permission-boundary-${var.developer_name}.json \
-        --description "Permission boundary for developer accounts" \
-        --role-arn arn:aws:iam::${aws_organizations_account.developer_account.id}:role/OrganizationAccountAccessRole || true
+        --description "Permission boundary for developer accounts" || echo "Policy may already exist"
       
-      # Clean up temp file
       rm /tmp/permission-boundary-${var.developer_name}.json
     EOT
+    
+    interpreter = ["/bin/bash", "-c"]
   }
 }
 
@@ -204,8 +228,18 @@ resource "null_resource" "create_developer_role" {
   
   provisioner "local-exec" {
     command = <<-EOT
-      # Create trust policy
-      cat > /tmp/trust-policy-${var.developer_name}.json << 'EOF'
+      set -e
+      
+      CREDS=$(aws sts assume-role \
+        --role-arn arn:aws:iam::${aws_organizations_account.developer_account.id}:role/OrganizationAccountAccessRole \
+        --role-session-name terraform-setup \
+        --output json)
+      
+      export AWS_ACCESS_KEY_ID=$(echo $CREDS | jq -r '.Credentials.AccessKeyId')
+      export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | jq -r '.Credentials.SecretAccessKey')
+      export AWS_SESSION_TOKEN=$(echo $CREDS | jq -r '.Credentials.SessionToken')
+      
+      cat > /tmp/trust-policy-${var.developer_name}.json << 'TRUST'
 {
   "Version": "2012-10-17",
   "Statement": [
@@ -218,28 +252,27 @@ resource "null_resource" "create_developer_role" {
     }
   ]
 }
-EOF
+TRUST
       
-      # Create the role with permission boundary
+      echo "Creating developer role..."
       aws iam create-role \
         --role-name DeveloperRole \
         --assume-role-policy-document file:///tmp/trust-policy-${var.developer_name}.json \
-        --permissions-boundary arn:aws:iam::${aws_organizations_account.developer_account.id}:policy/DeveloperPermissionBoundary \
-        --role-arn arn:aws:iam::${aws_organizations_account.developer_account.id}:role/OrganizationAccountAccessRole || true
+        --permissions-boundary arn:aws:iam::${aws_organizations_account.developer_account.id}:policy/DeveloperPermissionBoundary || echo "Role may already exist"
       
-      # Attach PowerUserAccess policy
+      echo "Attaching PowerUserAccess policy..."
       aws iam attach-role-policy \
         --role-name DeveloperRole \
-        --policy-arn arn:aws:iam::aws:policy/PowerUserAccess \
-        --role-arn arn:aws:iam::${aws_organizations_account.developer_account.id}:role/OrganizationAccountAccessRole || true
+        --policy-arn arn:aws:iam::aws:policy/PowerUserAccess || echo "Policy may already be attached"
       
-      # Clean up temp file
       rm /tmp/trust-policy-${var.developer_name}.json
     EOT
+    
+    interpreter = ["/bin/bash", "-c"]
   }
 }
 
-# Budget configuration (still uses native Terraform with assume role)
+# Create budget
 resource "null_resource" "create_budget" {
   depends_on = [null_resource.configure_account]
   
@@ -250,8 +283,9 @@ resource "null_resource" "create_budget" {
   
   provisioner "local-exec" {
     command = <<-EOT
-      # Create budget configuration
-      cat > /tmp/budget-${var.developer_name}.json << 'EOF'
+      set -e
+      
+      cat > /tmp/budget-${var.developer_name}.json << 'BUDGET'
 {
   "BudgetName": "bose-dev-${var.developer_name}-monthly-budget",
   "BudgetType": "COST",
@@ -264,10 +298,9 @@ resource "null_resource" "create_budget" {
     "LinkedAccount": ["${aws_organizations_account.developer_account.id}"]
   }
 }
-EOF
+BUDGET
       
-      # Create notifications configuration
-      cat > /tmp/notifications-${var.developer_name}.json << 'EOF'
+      cat > /tmp/notifications-${var.developer_name}.json << 'NOTIF'
 [
   {
     "Notification": {
@@ -306,19 +339,19 @@ EOF
     ]
   }
 ]
-EOF
+NOTIF
       
-      # Create budget
+      echo "Creating budget..."
       aws budgets create-budget \
         --account-id ${aws_organizations_account.developer_account.id} \
         --budget file:///tmp/budget-${var.developer_name}.json \
-        --notifications-with-subscribers file:///tmp/notifications-${var.developer_name}.json \
-        --role-arn arn:aws:iam::${aws_organizations_account.developer_account.id}:role/OrganizationAccountAccessRole || true
+        --notifications-with-subscribers file:///tmp/notifications-${var.developer_name}.json || echo "Budget may already exist"
       
-      # Clean up temp files
       rm /tmp/budget-${var.developer_name}.json
       rm /tmp/notifications-${var.developer_name}.json
     EOT
+    
+    interpreter = ["/bin/bash", "-c"]
   }
 }
 
