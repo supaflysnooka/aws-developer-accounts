@@ -36,7 +36,7 @@ This project provides a complete Terraform-based solution for creating and manag
 | API Gateway | ✅ Complete | HTTP/REST API management |
 | Secrets Manager | ✅ Complete | Secure credential storage |
 
-### Coming Soon (Rank 2 - October 10, 2024)
+### Coming Soon
 
 - Lambda (Serverless compute)
 - EventBridge (Event-driven architecture)
@@ -66,7 +66,7 @@ This project provides a complete Terraform-based solution for creating and manag
 
 #### macOS
 ```bash
-brew install terraform awscli jq
+brew install terraform awscli jq (optionally tfswitch)
 ```
 
 #### Linux (Ubuntu/Debian)
@@ -96,7 +96,9 @@ aws configure
 
 ### 3. Create a Developer Account
 ```bash
-cd tests/unit/modules/account-factory
+
+# To separate test scenarios between developers
+cd tests/unit/modules/account-factory-test-[1,2...]
 
 # Review and customize main.tf
 vim main.tf
