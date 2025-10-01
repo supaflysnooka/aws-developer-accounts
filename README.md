@@ -66,7 +66,7 @@ This project provides a complete Terraform-based solution for creating and manag
 
 #### macOS
 ```bash
-brew install terraform awscli jq tfswitch
+brew install terraform awscli jq (optionally tfswitch)
 ```
 
 #### Linux (Ubuntu/Debian)
@@ -77,7 +77,7 @@ echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://
 sudo apt update && sudo apt install terraform
 
 # AWS CLI & jq
-sudo apt install awscli jq tfswitch
+sudo apt install awscli jq
 ```
 
 ## Quick Start
@@ -280,7 +280,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
 
 Copyright © 2025 Bose Professional Corporation. All rights reserved.
 
-See [LICENSE](LICENSE) for details.
-=======
-# aws-developer-accounts
-Accounts developers can utilize as a lab/sandbox area for individual development
+### See [LICENSE](LICENSE) for details.
