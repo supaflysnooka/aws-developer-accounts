@@ -1,3 +1,5 @@
+![Bose Professional](./images/boseprofessional.png)
+
 # AWS Developer Accounts
 
 Automated AWS account provisioning and infrastructure management for developer sandbox environments.
