@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # AWS Developer Accounts
 
 Automated AWS account provisioning and infrastructure management for developer sandbox environments.
@@ -277,3 +278,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
 Copyright © 2025 Bose Professional Corporation. All rights reserved.
 
 See [LICENSE](LICENSE) for details.
+=======
+# aws-developer-accounts
+Accounts developers can utilize as a lab/sandbox area for individual development
+>>>>>>> 69e5bcd1b501d2827bc801e2d58b49fd4530438a
