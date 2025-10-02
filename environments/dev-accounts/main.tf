@@ -72,7 +72,7 @@ data "aws_caller_identity" "current" {
 variable "aws_region" {
   description = "Primary AWS region"
   type        = string
-  default     = "us-east-1"
+  default     = "us-west-2"
 }
 
 # Outputs
