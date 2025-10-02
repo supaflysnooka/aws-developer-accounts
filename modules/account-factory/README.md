@@ -117,7 +117,7 @@ module "developer_account" {
   source = "../../modules/account-factory"
   
   developer_name        = "john-smith"
-  developer_email       = "john.smith@bose.com"
+  developer_email       = "john.smith@boseprofessional.com"
   budget_limit          = 100
   management_account_id = "123456789012"
 }
@@ -133,13 +133,13 @@ module "developer_account" {
   
   # Required
   developer_name        = "john-smith"
-  developer_email       = "john.smith@bose.com"
+  developer_email       = "john.smith@boseprofessional.com"
   management_account_id = data.aws_caller_identity.current.account_id
   
   # Optional (with defaults shown)
   budget_limit          = 100
   jira_ticket_id        = "INFRA-123"
-  admin_email           = "infrastructure-team@bose.com"
+  admin_email           = "infrastructure-team@boseprofessional.com"
   aws_region            = "us-east-1"
   allowed_regions       = ["us-east-1", "us-west-2"]
   allowed_instance_types = [
@@ -166,7 +166,7 @@ output "developer_role_arn" {
 | `management_account_id` | string | Yes | - | AWS Organizations management account ID |
 | `budget_limit` | number | No | 100 | Monthly budget limit in USD (1-1000) |
 | `jira_ticket_id` | string | No | "" | Jira ticket for tracking |
-| `admin_email` | string | No | "infrastructure-team@bose.com" | Email for admin notifications |
+| `admin_email` | string | No | "infrastructure-team@boseprofessional.com" | Email for admin notifications |
 | `aws_region` | string | No | "us-east-1" | Primary AWS region |
 | `allowed_regions` | list(string) | No | ["us-east-1", "us-west-2"] | Regions developers can use |
 | `allowed_instance_types` | list(string) | No | t3/t4g micro-medium | Allowed EC2 instance types |
@@ -190,14 +190,14 @@ AWS Organizations requires a **globally unique email address** for each account.
 ### Email Aliasing (Recommended for Testing)
 Use the `+` trick with Gmail/Google Workspace:
 ```hcl
-developer_email = "john.smith+dev1@bose.com"  # Routes to john.smith@bose.com
-developer_email = "john.smith+dev2@bose.com"  # Different account, same inbox
+developer_email = "john.smith+dev1@boseprofessional.com"  # Routes to john.smith@boseprofessional.com
+developer_email = "john.smith+dev2@boseprofessional.com"  # Different account, same inbox
 ```
 
 ### Production Naming
 For production, use actual developer emails:
 ```hcl
-developer_email = "john.smith@bose.com"
+developer_email = "john.smith@boseprofessional.com"
 ```
 
 ## Security
@@ -246,7 +246,7 @@ aws iam create-role \
 **Solution:**
 ```bash
 # Option 1: Use a different email
-developer_email = "john.smith+test2@bose.com"
+developer_email = "john.smith+test2@boseprofessional.com"
 
 # Option 2: Check for suspended accounts
 aws organizations list-accounts --query 'Accounts[?Status==`SUSPENDED`]'
