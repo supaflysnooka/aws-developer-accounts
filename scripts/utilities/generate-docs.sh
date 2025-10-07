@@ -509,3 +509,32 @@ main() {
     echo ""
     
     read -p "Continue? (y/n): " confirm
+
+    if [ "$confirm" = "y" ]; then
+        generate_module_readme "$module_dir"
+    else
+        print_info "Skipping module READMEs"
+    fi
+    
+    # Generate main documentation
+    generate_main_readme
+    generate_module_index
+    generate_changelog
+    generate_contributing_guide
+    
+    # Summary
+    print_header "Documentation Generation Complete"
+    
+    echo ""
+    print_success "Documentation has been generated/updated!"
+    echo ""
+    print_info "Generated files:"
+    echo "  • Module READMEs: modules/*/README.md"
+    echo "  • Module Index: docs/MODULE_INDEX.md"
+    echo "  • Changelog: CHANGELOG.md"
+    echo "  • Contributing Guide: CONTRIBUTING.md"
+    echo ""
+    print_info "Review and commit the changes"
+}
+
+main "$@"
