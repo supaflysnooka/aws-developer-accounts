@@ -714,3 +714,6 @@ HTML report generated: /tmp/compliance_report.html
 ```bash
 # Generate compliance report for auditors
 ./scripts/validation
+
+
+----------------- NEEDS TO BE COMPLETED
