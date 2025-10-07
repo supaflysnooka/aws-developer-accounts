@@ -207,11 +207,11 @@ generate_main_readme() {
     for module_dir in $modules; do
         local module_name=$(basename "$module_dir")
         local category=$(basename "$(dirname "$module_dir")")
-        local status="✅ Complete"
+        local status="Complete"
         
         # Check if README exists
         if [ ! -f "$module_dir/README.md" ]; then
-            status="📝 Needs Docs"
+            status="Needs Docs"
         fi
         
         modules_table+="| $category/$module_name | $status | - |\n"

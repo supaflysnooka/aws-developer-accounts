@@ -449,7 +449,7 @@ curl -I http://$APP_URL
 # 7. Check cost tracking
 aws ce get-cost-and-usage --time-period Start=2024-10-01,End=2024-10-31 --granularity MONTHLY --metrics UnblendedCost --profile test-dev
 
-echo "✅ Developer onboarding test complete"
+echo " Developer onboarding test complete"
 ```
 
 #### Test Case 2: Budget Enforcement
@@ -466,11 +466,11 @@ while true; do
     echo "Current spend: \$$SPEND"
     
     if (( $(echo "$SPEND > 90" | bc -l) )); then
-        echo "⚠️  Budget alert triggered at $SPEND"
+        echo "Budget alert triggered at $SPEND"
     fi
     
     if (( $(echo "$SPEND >= 100" | bc -l) )); then
-        echo "🛑 Budget limit reached - checking for automatic termination"
+        echo "Budget limit reached - checking for automatic termination"
         break
     fi
     
@@ -481,7 +481,7 @@ done
 RUNNING_INSTANCES=$(aws ec2 describe-instances --filters "Name=instance-state-name,Values=running" --profile test-dev | jq '.Reservations | length')
 echo "Running instances after budget limit: $RUNNING_INSTANCES"
 
-[ "$RUNNING_INSTANCES" -eq "0" ] && echo "✅ Budget enforcement working" || echo "❌ Budget enforcement failed"
+[ "$RUNNING_INSTANCES" -eq "0" ] && echo " Budget enforcement working" || echo "Budget enforcement failed"
 ```
 
 #### Test Case 3: Security Boundary Testing
@@ -492,19 +492,19 @@ echo "Running instances after budget limit: $RUNNING_INSTANCES"
 echo "Testing security boundaries..."
 
 # 1. Try to access billing (should fail)
-aws ce get-cost-and-usage --profile test-dev 2>&1 | grep -q "AccessDenied" && echo "✅ Billing access blocked" || echo "❌ Billing access not blocked"
+aws ce get-cost-and-usage --profile test-dev 2>&1 | grep -q "AccessDenied" && echo " Billing access blocked" || echo "Billing access not blocked"
 
 # 2. Try to access AWS Marketplace (should fail)
-aws marketplace-catalog list-entities --profile test-dev 2>&1 | grep -q "AccessDenied" && echo "✅ Marketplace access blocked" || echo "❌ Marketplace access not blocked"
+aws marketplace-catalog list-entities --profile test-dev 2>&1 | grep -q "AccessDenied" && echo " Marketplace access blocked" || echo "Marketplace access not blocked"
 
 # 3. Try to create expensive instance (should fail)
-aws ec2 run-instances --instance-type m5.4xlarge --image-id ami-12345 --profile test-dev 2>&1 | grep -q "not authorized" && echo "✅ Expensive instance blocked" || echo "❌ Expensive instance not blocked"
+aws ec2 run-instances --instance-type m5.4xlarge --image-id ami-12345 --profile test-dev 2>&1 | grep -q "not authorized" && echo " Expensive instance blocked" || echo "Expensive instance not blocked"
 
 # 4. Try to create allowed instance (should succeed)
-aws ec2 run-instances --instance-type t3.micro --image-id ami-12345 --profile test-dev && echo "✅ Allowed instance type works" || echo "❌ Allowed instance type blocked incorrectly"
+aws ec2 run-instances --instance-type t3.micro --image-id ami-12345 --profile test-dev && echo " Allowed instance type works" || echo "Allowed instance type blocked incorrectly"
 
 # 5. Try to modify IAM without boundary (should fail)
-aws iam create-role --role-name test-role --profile test-dev 2>&1 | grep -q "permission boundary" && echo "✅ IAM boundary enforced" || echo "❌ IAM boundary not enforced"
+aws iam create-role --role-name test-role --profile test-dev 2>&1 | grep -q "permission boundary" && echo " IAM boundary enforced" || echo "IAM boundary not enforced"
 
 echo "Security boundary testing complete"
 ```
@@ -521,7 +521,7 @@ aws ecs stop-task --cluster test-cluster --task $(aws ecs list-tasks --cluster t
 # Verify auto-recovery
 sleep 30
 RUNNING_TASKS=$(aws ecs list-tasks --cluster test-cluster --desired-status RUNNING | jq '.taskArns | length')
-[ "$RUNNING_TASKS" -gt "0" ] && echo "✅ Auto-recovery works"
+[ "$RUNNING_TASKS" -gt "0" ] && echo " Auto-recovery works"
 ```
 
 ### Chaos Test 2: Network Failures
@@ -556,7 +556,7 @@ curl -I http://$APP_URL
 
 set -e
 
-echo "🧪 Starting Terraform Module Test Suite"
+echo "Starting Terraform Module Test Suite"
 echo "========================================"
 
 # Phase 1: Unit Tests
@@ -585,7 +585,7 @@ echo "Phase 3: End-to-End Testing"
 echo "Phase 4: Chaos Testing"
 ./tests/chaos/failure-scenarios.sh
 
-echo "✅ All tests completed successfully!"
+echo " All tests completed successfully!"
 ```
 
 ---
@@ -632,8 +632,8 @@ echo "✅ All tests completed successfully!"
 ### Unit Tests
 | Module | Status | Duration | Notes |
 |--------|--------|----------|-------|
-| account-factory | ✅ | 8m | All checks passed |
-| vpc | ✅ | 4m | CIDR calculations correct |
+| account-factory |  | 8m | All checks passed |
+| vpc |  | 4m | CIDR calculations correct |
 ...
 
 ### Issues Found

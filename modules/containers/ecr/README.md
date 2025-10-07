@@ -641,7 +641,7 @@ vulnerability_threshold  = 0
 
 ```dockerfile
 # Use specific versions, not 'latest'
-FROM node:18.17.1-alpine3.18  # ✅
+FROM node:18.17.1-alpine3.18 
 
 # Multi-stage builds
 FROM node:18 AS builder

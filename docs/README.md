@@ -325,12 +325,12 @@ Your $100/month budget includes:
 **Problem**: Trying to perform an action outside your permission boundary.
 
 **Solution**: Check what you're allowed to do:
-- ✅ Create EC2, ECS, Lambda, S3, RDS within approved regions
-- ✅ Create IAM roles with permission boundary
-- ❌ Access AWS Marketplace
-- ❌ Create expensive EC2 instances
-- ❌ Access billing/cost management
-- ❌ Modify AWS Organizations
+- Create EC2, ECS, Lambda, S3, RDS within approved regions
+- Create IAM roles with permission boundary
+- Access AWS Marketplace
+- Create expensive EC2 instances
+- Access billing/cost management
+- Modify AWS Organizations
 
 #### "Insufficient Capacity" for EC2
 
@@ -422,10 +422,10 @@ aws ecs execute-command \
 
 1. **Never hardcode credentials**:
    ```hcl
-   # ❌ BAD
+   # BAD PRACTICE
    password = "MyPassword123"
    
-   # ✅ GOOD
+   # ACCEPTABLE
    manage_master_user_password = true  # Let AWS generate and store in Secrets Manager
    ```
 
@@ -450,10 +450,10 @@ aws ecs execute-command \
 4. **Use private subnets**:
    ```hcl
    # Place application in private subnets
-   subnet_ids = module.vpc.private_subnets  # ✅
+   subnet_ids = module.vpc.private_subnets 
    
    # Not public subnets (unless it's a load balancer)
-   subnet_ids = module.vpc.public_subnets   # ❌
+   subnet_ids = module.vpc.public_subnets 
    ```
 
 ### Infrastructure as Code
