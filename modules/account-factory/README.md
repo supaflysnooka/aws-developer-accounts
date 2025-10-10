@@ -2,6 +2,8 @@
 
 The Account Factory module automates the creation and configuration of AWS developer accounts within an AWS Organization, including budget controls, IAM configuration, and base infrastructure setup.
 
+**Cross-Platform Support**: This module automatically detects your operating system and uses the appropriate shell interpreter (PowerShell for Windows, Bash for Unix/Linux/Mac).
+
 ## Overview
 
 This module creates:
@@ -45,39 +47,74 @@ This module creates:
 
 ### Local Requirements
 
+#### For All Platforms
 - **Terraform** >= 1.5.0
 - **AWS CLI** >= 2.x
 - **jq** (JSON processor for parsing AWS CLI output)
-- **bash** shell
 
-Install jq:
+#### For Windows Users
+- **PowerShell** 5.1 or later (included with Windows 10/11)
+- **AWS CLI v2** for Windows
+- **jq** for Windows
+
+**Install jq on Windows:**
+```powershell
+# Using Chocolatey
+choco install jq
+
+# Using Scoop
+scoop install jq
+
+# Or download from https://stedolan.github.io/jq/download/
+# Add jq.exe to your PATH
+```
+
+**Verify PowerShell version:**
+```powershell
+$PSVersionTable.PSVersion
+# Should be 5.1 or higher
+```
+
+#### For Unix/Linux/Mac Users
+- **bash** shell
+- **jq**
+
+**Install jq:**
 ```bash
 # macOS
 brew install jq
 
-# Linux
-sudo apt install jq  # or: sudo yum install jq
+# Ubuntu/Debian
+sudo apt install jq
+
+# RHEL/CentOS/Fedora
+sudo yum install jq
 ```
 
 ## How It Works
 
+The module automatically detects your operating system and executes platform-specific scripts:
+
 ### Phase 1: Account Creation (Native Terraform)
 ```
-1. Creates AWS Organizations account
-2. Waits 60 seconds for account provisioning
+1. Detects operating system (Windows vs Unix)
+2. Creates AWS Organizations account
+3. Waits 60 seconds for account provisioning
 ```
 
-### Phase 2: Cross-Account Configuration (AWS CLI)
+### Phase 2: Cross-Account Configuration (Platform-Specific Scripts)
 ```
-3. Assumes OrganizationAccountAccessRole in new account
-4. Creates S3 state bucket with:
-   - Versioning enabled
-   - AES256 encryption
-   - Public access blocked
-5. Creates DynamoDB lock table
-6. Creates IAM permission boundary policy
-7. Creates DeveloperRole with permission boundary
-8. Creates monthly budget with alerts
+Windows (PowerShell):
+4. Executes configure-account.ps1
+5. Executes create-permission-boundary.ps1
+6. Executes create-developer-role.ps1
+7. Executes create-budget.ps1
+
+Unix/Linux/Mac (Bash):
+4. Executes configure-account.sh
+5. Executes create-permission-boundary.sh
+6. Executes create-developer-role.sh
+7. Executes create-budget.sh
 ```
 
 ### Phase 3: Documentation Generation
@@ -86,31 +123,27 @@ sudo apt install jq  # or: sudo yum install jq
 10. Generates onboarding.md documentation
 ```
 
-## Why AWS CLI Instead of Native Terraform?
+## Platform Detection
 
-The module uses AWS CLI commands with `local-exec` provisioners for cross-account resources instead of native Terraform resources due to a **provider configuration limitation**:
+The module uses Terraform's built-in path functions to detect the operating system:
 
-**The Problem:**
-- Resources in the new account need credentials that don't exist until after the account is created
-- Terraform requires provider configuration at plan time, before the account exists
-- This creates a chicken-and-egg problem
+```hcl
+locals {
+  is_windows = substr(pathexpand("~"), 0, 1) == "/" ? false : true
+  is_unix    = !local.is_windows
+  
+  shell_interpreter = local.is_windows ? ["PowerShell", "-Command"] : ["/bin/bash", "-c"]
+}
+```
 
-**The Solution:**
-- Use `null_resource` with `local-exec` provisioner
-- Dynamically assume the OrganizationAccountAccessRole using AWS CLI
-- Export temporary credentials as environment variables
-- Execute AWS CLI commands with those credentials
-
-**Alternative Approaches Considered:**
-1. **Two-phase Terraform** (create account, then apply again) - Too complex for users
-2. **Separate modules** (account creation, then account configuration) - Breaks atomicity
-3. **Custom Terraform provider** - Overkill for this use case
-
-The AWS CLI approach provides a single-apply solution that works reliably.
+**How it works:**
+- On Windows: `pathexpand("~")` returns `C:\Users\username`
+- On Unix: `pathexpand("~")` returns `/home/username` or `/Users/username`
+- The first character determines the platform
 
 ## Usage
 
-### Basic Example
+### Basic Example (Works on All Platforms)
 
 ```hcl
 module "developer_account" {
@@ -123,147 +156,113 @@ module "developer_account" {
 }
 ```
 
-### Complete Example
+### Running on Windows
 
-```hcl
-data "aws_caller_identity" "current" {}
+```powershell
+# Initialize Terraform
+terraform init
 
-module "developer_account" {
-  source = "../../modules/account-factory"
-  
-  # Required
-  developer_name        = "john-smith"
-  developer_email       = "john.smith@boseprofessional.com"
-  management_account_id = data.aws_caller_identity.current.account_id
-  
-  # Optional (with defaults shown)
-  budget_limit          = 100
-  jira_ticket_id        = "INFRA-123"
-  admin_email           = "infrastructure-team@boseprofessional.com"
-  aws_region            = "us-east-1"
-  allowed_regions       = ["us-east-1", "us-west-2"]
-  allowed_instance_types = [
-    "t3.nano", "t3.micro", "t3.small", "t3.medium",
-    "t4g.nano", "t4g.micro", "t4g.small", "t4g.medium"
-  ]
-}
+# Plan the deployment
+terraform plan -out=tfplan
 
-output "account_id" {
-  value = module.developer_account.account_id
-}
+# Apply the configuration
+terraform apply tfplan
 
-output "developer_role_arn" {
-  value = module.developer_account.developer_role_arn
-}
+# The module will automatically:
+# 1. Detect you're on Windows
+# 2. Use PowerShell scripts
+# 3. Execute AWS CLI commands via PowerShell
 ```
 
-## Variables
+### Running on Unix/Linux/Mac
 
-| Variable | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `developer_name` | string | Yes | - | Developer identifier (lowercase, alphanumeric, hyphens only) |
-| `developer_email` | string | Yes | - | Unique email address for the account |
-| `management_account_id` | string | Yes | - | AWS Organizations management account ID |
-| `budget_limit` | number | No | 100 | Monthly budget limit in USD (1-1000) |
-| `jira_ticket_id` | string | No | "" | Jira ticket for tracking |
-| `admin_email` | string | No | "infrastructure-team@boseprofessional.com" | Email for admin notifications |
-| `aws_region` | string | No | "us-east-1" | Primary AWS region |
-| `allowed_regions` | list(string) | No | ["us-east-1", "us-west-2"] | Regions developers can use |
-| `allowed_instance_types` | list(string) | No | t3/t4g micro-medium | Allowed EC2 instance types |
-
-## Outputs
-
-| Output | Type | Description |
-|--------|------|-------------|
-| `account_id` | string | AWS account ID |
-| `account_email` | string | Account email address |
-| `terraform_state_bucket` | string | S3 bucket name for Terraform state |
-| `terraform_lock_table` | string | DynamoDB table name for state locking |
-| `developer_role_arn` | string | ARN of the DeveloperRole |
-| `onboarding_doc_path` | string | Path to generated onboarding documentation |
-
-## Email Address Requirements
-
-### Uniqueness
-AWS Organizations requires a **globally unique email address** for each account. The email cannot be reused for 90 days after account closure.
-
-### Email Aliasing (Recommended for Testing)
-Use the `+` trick with Gmail/Google Workspace:
-```hcl
-developer_email = "john.smith+dev1@boseprofessional.com"  # Routes to john.smith@boseprofessional.com
-developer_email = "john.smith+dev2@boseprofessional.com"  # Different account, same inbox
-```
-
-### Production Naming
-For production, use actual developer emails:
-```hcl
-developer_email = "john.smith@boseprofessional.com"
-```
-
-## Security
-
-### IAM Permission Boundary
-
-The permission boundary restricts what developers can do:
-
-**Allowed:**
-- EC2, ECS, EKS, Lambda (compute)
-- S3, DynamoDB, RDS (storage/databases)
-- VPC, ELB, CloudFront (networking)
-- CloudWatch, Logs (monitoring)
-- SQS, SNS (messaging)
-- Limited IAM (must use permission boundary)
-
-**Denied:**
-- AWS Marketplace access
-- Expensive EC2 instances (> t3.medium)
-- Billing/cost management
-- AWS Organizations management
-- Regions outside allowed list
-
-**IAM Role Creation:**
-Developers can create IAM roles, but they **must** include the permission boundary:
 ```bash
-aws iam create-role \
-  --role-name MyAppRole \
-  --permissions-boundary arn:aws:iam::<ACCOUNT_ID>:policy/DeveloperPermissionBoundary
+# Initialize Terraform
+terraform init
+
+# Plan the deployment
+terraform plan -out=tfplan
+
+# Apply the configuration
+terraform apply tfplan
+
+# The module will automatically:
+# 1. Detect you're on Unix/Linux/Mac
+# 2. Use Bash scripts
+# 3. Execute AWS CLI commands via Bash
 ```
-
-### Budget Enforcement
-
-| Threshold | Action |
-|-----------|--------|
-| 80% of budget | Email alert to developer and infrastructure team |
-| 90% forecast | Email alert (proactive warning) |
-| 100% of budget | Automatic resource termination (future enhancement) |
 
 ## Troubleshooting
 
-### Error: EMAIL_ALREADY_EXISTS
+### Windows-Specific Issues
 
-**Problem:** Email address is still in use by a suspended account.
+#### Error: PowerShell Execution Policy
+
+**Problem:** PowerShell scripts are blocked by execution policy.
 
 **Solution:**
-```bash
-# Option 1: Use a different email
-developer_email = "john.smith+test2@boseprofessional.com"
+```powershell
+# Check current policy
+Get-ExecutionPolicy
 
-# Option 2: Check for suspended accounts
-aws organizations list-accounts --query 'Accounts[?Status==`SUSPENDED`]'
+# Set policy to allow scripts (run as Administrator)
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
 
-# Option 3: Wait for account closure (up to 90 days)
+# Or bypass for this session only
+Set-ExecutionPolicy Bypass -Scope Process
 ```
 
-### Error: Cannot assume OrganizationAccountAccessRole
+#### Error: jq: command not found (Windows)
 
-**Problem:** Role hasn't propagated yet.
+**Problem:** jq is not installed or not in PATH.
 
 **Solution:**
-- The module includes a 60-second wait, but sometimes AWS needs longer
-- Simply run `terraform apply` again
-- The `|| true` flags prevent errors from already-created resources
+```powershell
+# Option 1: Install via Chocolatey
+choco install jq
 
-### Error: jq: command not found
+# Option 2: Download manually
+# 1. Download jq-win64.exe from https://github.com/stedolan/jq/releases
+# 2. Rename to jq.exe
+# 3. Place in C:\Windows\System32 or add to PATH
+
+# Verify installation
+jq --version
+```
+
+#### Error: AWS CLI not found
+
+**Problem:** AWS CLI is not installed or not in PATH.
+
+**Solution:**
+```powershell
+# Download and install AWS CLI v2 for Windows
+# https://awscli.amazonaws.com/AWSCLIV2.msi
+
+# Verify installation
+aws --version
+
+# Configure AWS credentials
+aws configure
+```
+
+#### Error: Cannot parse JSON in PowerShell
+
+**Problem:** JSON parsing fails due to special characters.
+
+**Solution:**
+The module's PowerShell scripts use proper JSON escaping. If you see errors:
+```powershell
+# Ensure AWS CLI output is valid JSON
+aws sts get-caller-identity --output json
+
+# Test jq installation
+echo '{"test":"value"}' | jq .
+```
+
+### Unix/Linux/Mac-Specific Issues
+
+#### Error: jq: command not found
 
 **Problem:** jq is not installed.
 
@@ -272,162 +271,238 @@ aws organizations list-accounts --query 'Accounts[?Status==`SUSPENDED`]'
 # macOS
 brew install jq
 
-# Linux
+# Ubuntu/Debian
+sudo apt update
 sudo apt install jq
-```
 
-### Debug: See What Commands Are Running
-
-The null_resource provisioners include echo statements for visibility:
-```bash
-terraform apply
-# Watch for:
-# "Assuming role in account..."
-# "Creating S3 bucket..."
-# "Enabling versioning..."
-# etc.
-```
-
-### Manual Verification
-
-Check resources were created:
-```bash
-# Configure profile for new account
-aws configure set profile.john-smith role_arn arn:aws:iam::<ACCOUNT_ID>:role/DeveloperRole
-aws configure set profile.john-smith source_profile default
-
-# Verify S3 bucket
-aws s3 ls --profile john-smith | grep terraform-state
-
-# Verify DynamoDB table
-aws dynamodb list-tables --profile john-smith | grep terraform-locks
-
-# Verify IAM role
-aws iam get-role --role-name DeveloperRole --profile john-smith
-
-# Verify permission boundary
-aws iam get-policy --policy-arn arn:aws:iam::<ACCOUNT_ID>:policy/DeveloperPermissionBoundary --profile john-smith
-```
-
-## Generated Files
-
-After successful apply, find generated documentation:
-
-```
-generated/
-└── john-smith/
-    ├── backend.tf      # Terraform backend configuration
-    └── onboarding.md   # Complete onboarding guide
-```
-
-### Using Generated Backend Configuration
-
-```bash
-# In your Terraform project
-cp generated/john-smith/backend.tf .
-
-# Initialize with remote state
-terraform init
-
-# Your state is now stored in S3 with DynamoDB locking
-```
-
-## Account Deletion
-
-### Terraform Destroy
-
-```bash
-terraform destroy
-```
-
-**Warning:** This removes resources from Terraform state but the AWS account remains in a **SUSPENDED** state for 90 days.
-
-### Complete Account Closure
-
-1. Remove lifecycle protection:
-```hcl
-# In module or comment out lifecycle block
-lifecycle {
-  # prevent_destroy = true  # Comment this out
-}
-```
-
-2. Destroy via Terraform:
-```bash
-terraform destroy
-```
-
-3. Manually close account (optional, for immediate closure):
-```bash
-# Via AWS Console: Organizations → Accounts → Close Account
-# Or via CLI:
-aws organizations close-account --account-id <ACCOUNT_ID>
-```
-
-## Testing
-
-### Unit Test
-
-```bash
-cd tests/unit/modules/account-factory
-
-# Review test configuration
-cat main.tf
-
-# Run test
-terraform init
-terraform plan
-terraform apply
+# RHEL/CentOS
+sudo yum install jq
 
 # Verify
-cat generated/*/onboarding.md
-
-# Clean up
-terraform destroy
+jq --version
 ```
 
-### Integration Test
+#### Error: Permission denied on script execution
 
-See `tests/integration/` for complete workflow tests including:
-- Account creation
-- Infrastructure deployment
-- Application deployment
-- Cost tracking
-- Budget enforcement
+**Problem:** Script files don't have execute permissions.
 
-## Module Development
+**Solution:**
+The module uses `local-exec` provisioner which doesn't require execute permissions. If you manually run scripts:
+```bash
+chmod +x modules/account-factory/scripts/*.sh
+```
 
-### Adding Features
+### Common Issues (All Platforms)
 
-1. Update `main.tf` with new resources
-2. Add variables to `variables.tf`
-3. Add outputs to `outputs.tf`
-4. Update this README
-5. Add tests in `tests/unit/modules/account-factory/`
-6. Test thoroughly before merging
+#### Error: EMAIL_ALREADY_EXISTS
 
-### Code Standards
+**Problem:** Email address is still in use by a suspended account.
 
-- Use `set -e` in bash provisioners (fail fast)
-- Include descriptive echo statements for debugging
-- Use `|| echo "May already exist"` for idempotent operations
-- Keep JSON policies in locals for readability
-- Document all assumptions and limitations
+**Solution:**
+```bash
+# Use a different email with + trick
+developer_email = "john.smith+dev2@boseprofessional.com"
+```
+
+#### Error: Cannot assume OrganizationAccountAccessRole
+
+**Problem:** Role hasn't propagated yet or credentials expired.
+
+**Solution:**
+```bash
+# Simply run terraform apply again
+terraform apply
+
+# The module includes 60-second wait and retry logic
+```
+
+#### Debug: Enable Verbose Output
+
+**Windows:**
+```powershell
+# Enable verbose output for AWS CLI
+$env:AWS_DEBUG = "true"
+terraform apply
+
+# View PowerShell script execution
+$VerbosePreference = "Continue"
+```
+
+**Unix/Linux/Mac:**
+```bash
+# Enable verbose output for AWS CLI
+export AWS_DEBUG=1
+terraform apply
+
+# Enable bash debugging
+export PS4='+ $(date "+%Y-%m-%d %H:%M:%S") ${BASH_SOURCE}:${LINENO}: '
+set -x
+```
+
+## Script Directory Structure
+
+```
+modules/account-factory/
+├── main.tf                              # Auto-detects OS and selects scripts
+├── variables.tf
+├── outputs.tf
+├── templates/
+│   ├── backend.tf.tpl
+│   └── onboarding.md.tpl
+└── scripts/
+    ├── configure-account.ps1            # Windows PowerShell
+    ├── configure-account.sh             # Unix/Linux/Mac Bash
+    ├── create-permission-boundary.ps1   # Windows PowerShell
+    ├── create-permission-boundary.sh    # Unix/Linux/Mac Bash
+    ├── create-developer-role.ps1        # Windows PowerShell
+    ├── create-developer-role.sh         # Unix/Linux/Mac Bash
+    ├── create-budget.ps1                # Windows PowerShell
+    └── create-budget.sh                 # Unix/Linux/Mac Bash
+```
+
+## Platform-Specific Script Features
+
+### PowerShell Scripts (.ps1)
+- Use `$ErrorActionPreference = "Stop"` for fail-fast behavior
+- Proper error handling with try/catch blocks
+- Clean environment variable cleanup in finally blocks
+- Write-Host for colored output
+- ConvertFrom-Json and ConvertTo-Json for JSON handling
+- Temp file handling with [System.IO.Path]::GetTempFileName()
+
+### Bash Scripts (.sh)
+- Use `set -e` for fail-fast behavior
+- Standard error handling with || echo for idempotent operations
+- Environment variable export/cleanup
+- Heredoc syntax for multi-line JSON
+- /tmp directory for temporary files
+
+## Testing on Both Platforms
+
+### Windows Testing
+```powershell
+# Test OS detection
+terraform console
+> local.is_windows
+true
+
+# Test PowerShell availability
+Get-Command pwsh -ErrorAction SilentlyContinue
+
+# Dry run without applying
+terraform plan
+```
+
+### Unix/Linux/Mac Testing
+```bash
+# Test OS detection
+terraform console
+> local.is_windows
+false
+
+# Test bash availability
+which bash
+
+# Dry run without applying
+terraform plan
+```
+
+## Best Practices
+
+### For Windows Users
+1. **Use PowerShell 7+** for better compatibility (though 5.1 works)
+2. **Run as regular user** (not Administrator) for security
+3. **Enable script signing** in production environments
+4. **Use Windows Terminal** for better console experience
+
+### For Unix Users
+1. **Use bash 4.0+** for better compatibility
+2. **Ensure /bin/bash exists** (use `which bash` to verify)
+3. **Keep jq updated** for latest features
+4. **Use consistent line endings** (LF, not CRLF)
+
+### For All Users
+1. **Keep AWS CLI updated** to version 2.x
+2. **Configure AWS credentials** properly before running
+3. **Test in development** before production
+4. **Review generated documentation** in `generated/` directory
+
+## CI/CD Considerations
+
+### GitHub Actions
+```yaml
+jobs:
+  terraform:
+    runs-on: ubuntu-latest  # or windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        
+      - name: Install jq (Ubuntu)
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y jq
+        
+      - name: Install jq (Windows)
+        if: runner.os == 'Windows'
+        run: choco install jq
+        
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+          
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+```
+
+### Azure DevOps
+```yaml
+steps:
+  - task: TerraformInstaller@0
+    inputs:
+      terraformVersion: 'latest'
+      
+  - script: |
+      # Install jq based on agent OS
+      if [ "$(Agent.OS)" = "Linux" ]; then
+        sudo apt-get install -y jq
+      elif [ "$(Agent.OS)" = "Windows_NT" ]; then
+        choco install jq -y
+      fi
+    displayName: 'Install jq'
+    
+  - task: TerraformTaskV2@2
+    inputs:
+      command: 'apply'
+      environmentServiceNameAWS: 'AWS-Connection'
+```
+
+## Security Considerations
+
+Both PowerShell and Bash scripts follow security best practices:
+
+1. **Temporary credentials**: Use STS assume-role with session tokens
+2. **Credential cleanup**: Remove environment variables after use
+3. **Secure file handling**: Use system temp directories
+4. **No credential logging**: Sensitive data not echoed to console
+5. **Fail-fast behavior**: Stop on any error
 
 ## Future Enhancements
 
-- [ ] Self-service web portal integration
-- [ ] Automated resource termination at budget limit
-- [ ] VPC creation in account factory (currently manual)
-- [ ] Service Catalog integration
-- [ ] Automated compliance scanning
-- [ ] Cross-region replication for state buckets
-- [ ] Slack notifications for budget alerts
+- [ ] Support for custom script paths
+- [ ] WSL (Windows Subsystem for Linux) detection
+- [ ] Alternative shells (zsh, fish) support
+- [ ] Script validation and testing framework
+- [ ] Progress indicators for long-running operations
 
 ## References
 
 - [AWS Organizations Documentation](https://docs.aws.amazon.com/organizations/)
-- [AWS Budgets Documentation](https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-managing-costs.html)
-- [IAM Permission Boundaries](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_boundaries.html)
-- [Terraform null_resource](https://registry.terraform.io/providers/hashicorp/null/latest/docs/resources/resource)</content>
-</invoke>
+- [PowerShell Documentation](https://docs.microsoft.com/powershell/)
+- [Bash Reference Manual](https://www.gnu.org/software/bash/manual/)
+- [AWS CLI v2 Documentation](https://docs.aws.amazon.com/cli/latest/userguide/)
+- [jq Manual](https://stedolan.github.io/jq/manual/)
