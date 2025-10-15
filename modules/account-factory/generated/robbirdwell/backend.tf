@@ -1,10 +1,10 @@
 # modules/account-factory/templates/backend.tf.tpl
 terraform {
   backend "s3" {
-    bucket         = "bose-dev-rob-birdwell-8ea634ba-terraform-state"
+    bucket         = "bose-dev-robbirdwell-terraform-state"
     key            = "infrastructure/terraform.tfstate"
     region         = "us-west-2"
-    dynamodb_table = "bose-dev-rob-birdwell-8ea634ba-terraform-locks"
+    dynamodb_table = "bose-dev-robbirdwell-terraform-locks"
     encrypt        = true
   }
 }
@@ -14,6 +14,6 @@ provider "aws" {
   region = "us-west-2"
   
   assume_role {
-    role_arn = "arn:aws:iam::811572529263:role/DeveloperRole"
+    role_arn = "arn:aws:iam::426290730724:role/DeveloperRole"
   }
 }

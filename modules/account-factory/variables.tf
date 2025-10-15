@@ -53,7 +53,6 @@ variable "aws_region" {
 variable "aws_profile" {
   description = "AWS profile to use for AWS CLI commands"
   type        = string
-  default     = ""
 }
 
 variable "allowed_regions" {

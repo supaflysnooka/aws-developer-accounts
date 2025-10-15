@@ -48,7 +48,7 @@ resource "aws_organizations_account" "developer_account" {
   }
 
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
   }
 }
 
