@@ -23,19 +23,19 @@ This project provides a complete Terraform-based solution for creating and manag
 
 ### Available Modules
 
-| Module                    | Status   | Description                                       |
-| ------------------------- | -------- | ------------------------------------------------- |
-| Account Factory           | Complete | Automated AWS account provisioning                |
-| VPC Networking            | Complete | Multi-AZ VPC with public/private/database subnets |
-| Security Groups           | Complete | Pre-configured security group patterns            |
-| Application Load Balancer | Complete | ALB with SSL, routing, and health checks          |
-| ECS Service               | Complete | Fargate-based container orchestration             |
-| ECR                       | Complete | Container registry with scanning                  |
-| EC2                       | Complete | Cost-optimized compute instances                  |
-| RDS PostgreSQL            | Complete | Managed database with backups                     |
-| S3                        | Complete | Object storage with encryption                    |
-| API Gateway               | Complete | HTTP/REST API management                          |
-| Secrets Manager           | Complete | Secure credential storage                         |
+| Module | Status | Description |
+|--------|--------|-------------|
+| Account Factory | Complete | Automated AWS account provisioning |
+| VPC Networking | Complete | Multi-AZ VPC with public/private/database subnets |
+| Security Groups | Complete | Pre-configured security group patterns |
+| Application Load Balancer | Complete | ALB with SSL, routing, and health checks |
+| ECS Service | Complete | Fargate-based container orchestration |
+| ECR | Complete | Container registry with scanning |
+| EC2 | Complete | Cost-optimized compute instances |
+| RDS PostgreSQL | Complete | Managed database with backups |
+| S3 | Complete | Object storage with encryption |
+| API Gateway | Complete | HTTP/REST API management |
+| Secrets Manager | Complete | Secure credential storage |
 
 ### Coming Soon
 
@@ -66,7 +66,6 @@ This project provides a complete Terraform-based solution for creating and manag
 ### Installation
 
 #### Windows (PowerShell)
-
 ```powershell
 # Install Chocolatey (if not already installed)
 Set-ExecutionPolicy Bypass -Scope Process -Force
@@ -83,7 +82,6 @@ jq --version
 ```
 
 #### macOS
-
 ```bash
 brew install terraform awscli jq git
 # Optional: tfswitch for managing multiple Terraform versions
@@ -91,7 +89,6 @@ brew install tfswitch
 ```
 
 #### Linux (Ubuntu/Debian)
-
 ```bash
 # Terraform
 wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
@@ -107,14 +104,12 @@ sudo apt install awscli jq git
 ### 1. Clone Repository
 
 **Bash/Linux/Mac:**
-
 ```bash
 git clone https://github.com/bose/aws-developer-accounts.git
 cd aws-developer-accounts
 ```
 
 **PowerShell:**
-
 ```powershell
 git clone https://github.com/bose/aws-developer-accounts.git
 cd aws-developer-accounts
@@ -125,45 +120,58 @@ cd aws-developer-accounts
 **For AWS SSO (Recommended):**
 
 **Bash/Linux/Mac:**
-
 ```bash
 aws configure sso
 # Follow prompts to configure SSO
 
 # Login
 aws sso login --profile your-profile-name
+
+# Set as active profile (REQUIRED for Terraform)
+export AWS_PROFILE=your-profile-name
+export TF_VAR_aws_profile=$AWS_PROFILE
 ```
 
 **PowerShell:**
-
 ```powershell
 aws configure sso
 # Follow prompts to configure SSO
 
 # Login
 aws sso login --profile your-profile-name
+
+# Set as active profile (REQUIRED for Terraform)
+$env:AWS_PROFILE = "your-profile-name"
+$env:TF_VAR_aws_profile = $env:AWS_PROFILE
 ```
 
 **For IAM User Credentials:**
 
 **Bash/Linux/Mac:**
-
 ```bash
 aws configure
 # Enter your management account credentials
+
+# Set as active profile (REQUIRED for Terraform)
+export AWS_PROFILE=default
+export TF_VAR_aws_profile=$AWS_PROFILE
 ```
 
 **PowerShell:**
-
 ```powershell
 aws configure
 # Enter your management account credentials
+
+# Set as active profile (REQUIRED for Terraform)
+$env:AWS_PROFILE = "default"
+$env:TF_VAR_aws_profile = $env:AWS_PROFILE
 ```
+
+> **Note:** You must set BOTH environment variables on all platforms. The first tells AWS CLI which profile to use, the second passes it to Terraform as a variable.
 
 ### 3. Create a Developer Account
 
 **Bash/Linux/Mac:**
-
 ```bash
 # Navigate to test directory (to separate test scenarios between developers)
 cd tests/unit/modules/account-factory-test-1
@@ -171,8 +179,13 @@ cd tests/unit/modules/account-factory-test-1
 # Review and customize main.tf
 vim main.tf
 
-# Set your AWS profile
+# Set your AWS profile (BOTH variables required!)
 export AWS_PROFILE=your-profile-name
+export TF_VAR_aws_profile=$AWS_PROFILE
+
+# Verify variables are set
+echo "AWS_PROFILE: $AWS_PROFILE"
+echo "TF_VAR_aws_profile: $TF_VAR_aws_profile"
 
 # Initialize Terraform
 terraform init
@@ -185,7 +198,6 @@ terraform apply
 ```
 
 **PowerShell:**
-
 ```powershell
 # Navigate to test directory (to separate test scenarios between developers)
 cd tests/unit/modules/account-factory-test-1
@@ -193,8 +205,13 @@ cd tests/unit/modules/account-factory-test-1
 # Review and customize main.tf
 notepad main.tf
 
-# Set your AWS profile
-$env:AWS_PROFILE="your-profile-name"
+# Set your AWS profile (BOTH variables required!)
+$env:AWS_PROFILE = "your-profile-name"
+$env:TF_VAR_aws_profile = $env:AWS_PROFILE
+
+# Verify variables are set
+Write-Host "AWS_PROFILE: $env:AWS_PROFILE"
+Write-Host "TF_VAR_aws_profile: $env:TF_VAR_aws_profile"
 
 # Initialize Terraform
 terraform init
@@ -206,10 +223,11 @@ terraform plan
 terraform apply
 ```
 
+> **Important:** Setting `TF_VAR_aws_profile` is required on all platforms because the account factory module passes the AWS profile to provisioner scripts. Without it, you'll get "config profile () could not be found" errors.
+
 ### 4. Access Your New Account
 
 **Bash/Linux/Mac:**
-
 ```bash
 # Get account ID from Terraform output
 ACCOUNT_ID=$(terraform output -raw account_id)
@@ -224,7 +242,6 @@ aws sts get-caller-identity --profile your-name
 ```
 
 **PowerShell:**
-
 ```powershell
 # Get account ID from Terraform output
 $ACCOUNT_ID = terraform output -raw account_id
@@ -241,7 +258,6 @@ aws sts get-caller-identity --profile your-name
 ### 5. Deploy Infrastructure
 
 **Bash/Linux/Mac:**
-
 ```bash
 # Review the generated backend configuration
 cd generated/your-name/
@@ -253,7 +269,6 @@ terraform plan
 ```
 
 **PowerShell:**
-
 ```powershell
 # Review the generated backend configuration
 cd generated/your-name/
@@ -331,7 +346,6 @@ aws-developer-accounts/
 ### Budget Enforcement
 
 Each developer account has:
-
 - **$100/month hard cap** with automatic resource termination
 - **80% threshold** alert (email to developer + infrastructure team)
 - **90% forecast** alert (proactive warning)
@@ -349,7 +363,6 @@ Each developer account has:
 #### View Current Month Spend
 
 **Bash/Linux/Mac:**
-
 ```bash
 # Get current month spend
 aws ce get-cost-and-usage \
@@ -361,7 +374,6 @@ aws ce get-cost-and-usage \
 ```
 
 **PowerShell:**
-
 ```powershell
 # Get current month spend
 $StartDate = (Get-Date -Day 1).ToString("yyyy-MM-dd")
@@ -378,7 +390,6 @@ aws ce get-cost-and-usage `
 #### View Daily Costs (Last 30 Days)
 
 **Bash/Linux/Mac:**
-
 ```bash
 # Daily breakdown for last 30 days
 aws ce get-cost-and-usage \
@@ -390,7 +401,6 @@ aws ce get-cost-and-usage \
 ```
 
 **PowerShell:**
-
 ```powershell
 # Daily breakdown for last 30 days
 $StartDate = (Get-Date).AddDays(-30).ToString("yyyy-MM-dd")
@@ -407,7 +417,6 @@ aws ce get-cost-and-usage `
 #### View Costs by Service
 
 **Bash/Linux/Mac:**
-
 ```bash
 # Break down costs by AWS service
 aws ce get-cost-and-usage \
@@ -420,7 +429,6 @@ aws ce get-cost-and-usage \
 ```
 
 **PowerShell:**
-
 ```powershell
 # Break down costs by AWS service
 $StartDate = (Get-Date -Day 1).ToString("yyyy-MM-dd")
@@ -438,7 +446,6 @@ aws ce get-cost-and-usage `
 #### Check Budget Status
 
 **Bash/Linux/Mac:**
-
 ```bash
 # Get your account ID
 ACCOUNT_ID=$(aws sts get-caller-identity --profile your-name --query Account --output text)
@@ -450,7 +457,6 @@ aws budgets describe-budgets \
 ```
 
 **PowerShell:**
-
 ```powershell
 # Get your account ID
 $ACCOUNT_ID = aws sts get-caller-identity --profile your-name --query Account --output text
@@ -464,7 +470,6 @@ aws budgets describe-budgets `
 #### Forecast Next Month's Costs
 
 **Bash/Linux/Mac:**
-
 ```bash
 # Get cost forecast for next 30 days
 NEXT_MONTH_START=$(date -d '1 month' +%Y-%m-01)
@@ -478,7 +483,6 @@ aws ce get-cost-forecast \
 ```
 
 **PowerShell:**
-
 ```powershell
 # Get cost forecast for next 30 days
 $NextMonthStart = (Get-Date).AddMonths(1)
@@ -496,7 +500,6 @@ aws ce get-cost-forecast `
 
 **Bash/Linux/Mac:**
 Create `scripts/cost-dashboard.sh`:
-
 ```bash
 #!/bin/bash
 PROFILE=${1:-default}
@@ -533,7 +536,6 @@ aws ce get-cost-and-usage \
 
 **PowerShell:**
 Create `scripts/cost-dashboard.ps1`:
-
 ```powershell
 param(
     [string]$Profile = "default"
@@ -576,7 +578,6 @@ aws ce get-cost-and-usage `
 #### List Running Resources (Cost Contributors)
 
 **Bash/Linux/Mac:**
-
 ```bash
 # List all running EC2 instances
 aws ec2 describe-instances \
@@ -599,7 +600,6 @@ aws elbv2 describe-load-balancers \
 ```
 
 **PowerShell:**
-
 ```powershell
 # List all running EC2 instances
 Write-Host "Running EC2 Instances:" -ForegroundColor Yellow
@@ -639,7 +639,6 @@ aws elbv2 describe-load-balancers `
 ### Service Control Policies
 
 Developers **cannot**:
-
 - Access AWS Marketplace
 - Launch expensive instance types (> t3.medium)
 - Modify billing settings
@@ -647,7 +646,6 @@ Developers **cannot**:
 - Deploy outside approved regions
 
 Developers **can**:
-
 - Create EC2, ECS, Lambda, RDS, S3, DynamoDB
 - Create IAM roles (with permission boundaries)
 - Access CloudWatch logs and metrics
@@ -657,10 +655,62 @@ Developers **can**:
 
 ### Common Issues
 
+#### "The config profile () could not be found"
+
+This happens when Terraform provisioner scripts don't have access to your AWS profile.
+
+**Solution - Bash/Linux/Mac:**
+```bash
+# You must set BOTH environment variables
+export AWS_PROFILE=your-profile-name
+export TF_VAR_aws_profile=$AWS_PROFILE
+
+# Verify they're set
+echo "AWS_PROFILE: $AWS_PROFILE"
+echo "TF_VAR_aws_profile: $TF_VAR_aws_profile"
+
+# Then run Terraform
+terraform apply
+```
+
+**Solution - PowerShell:**
+```powershell
+# You must set BOTH environment variables
+$env:AWS_PROFILE = "your-profile-name"
+$env:TF_VAR_aws_profile = $env:AWS_PROFILE
+
+# Verify they're set
+Write-Host "AWS_PROFILE: $env:AWS_PROFILE"
+Write-Host "TF_VAR_aws_profile: $env:TF_VAR_aws_profile"
+
+# Then run Terraform
+terraform apply
+```
+
+**Why both?**
+- `AWS_PROFILE` / `$env:AWS_PROFILE` - Used by AWS CLI and Terraform provider
+- `TF_VAR_aws_profile` / `$env:TF_VAR_aws_profile` - Passed to the account-factory module, which passes it to shell scripts
+
+**Make it permanent (optional):**
+
+**Bash/Linux/Mac:**
+```bash
+# Add to ~/.bashrc or ~/.zshrc
+echo 'export AWS_PROFILE=your-profile-name' >> ~/.bashrc
+echo 'export TF_VAR_aws_profile=$AWS_PROFILE' >> ~/.bashrc
+source ~/.bashrc
+```
+
+**PowerShell:**
+```powershell
+# Add to your PowerShell profile
+Add-Content $PROFILE "`n`$env:AWS_PROFILE='your-profile-name'"
+Add-Content $PROFILE "`$env:TF_VAR_aws_profile=`$env:AWS_PROFILE"
+```
+
 #### "Access Denied" when running AWS CLI
 
 **Check your profile:**
-
 ```bash
 # Bash
 echo $AWS_PROFILE
@@ -670,7 +720,6 @@ echo $env:AWS_PROFILE
 ```
 
 **Verify credentials:**
-
 ```bash
 aws sts get-caller-identity --profile your-name
 ```
@@ -678,7 +727,6 @@ aws sts get-caller-identity --profile your-name
 #### Terraform state lock errors
 
 **Bash/Linux/Mac:**
-
 ```bash
 # List locks
 aws dynamodb scan \
@@ -690,7 +738,6 @@ terraform force-unlock <LOCK_ID>
 ```
 
 **PowerShell:**
-
 ```powershell
 # List locks
 aws dynamodb scan `
@@ -704,14 +751,12 @@ terraform force-unlock <LOCK_ID>
 ## Support
 
 ### Documentation
-
 - [Architecture Overview](docs/architecture/)
 - [Developer Guide](docs/developer-guide/)
 - [Troubleshooting Guide](docs/developer-guide/troubleshooting.md)
 - [Best Practices](docs/developer-guide/best-practices.md)
 
 ### Getting Help
-
 - **Questions**: infrastructure-team@bose.com
 - **Issues**: Create Jira ticket in INFRA project
 - **Wiki**: [Internal Documentation](https://wiki.bose.com/aws-accounts)
@@ -719,7 +764,6 @@ terraform force-unlock <LOCK_ID>
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
-
 - Adding new modules
 - Testing requirements
 - Code standards
