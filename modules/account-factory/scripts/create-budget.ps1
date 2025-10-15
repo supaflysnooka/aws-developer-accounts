@@ -14,12 +14,12 @@ Write-Host "Creating budget..." -ForegroundColor Cyan
 try {
     # Budget definition
     $Budget = @{
-        BudgetName = "bose-dev-$DeveloperName-monthly-budget"
-        BudgetType = "COST"
-        TimeUnit = "MONTHLY"
+        BudgetName  = "bose-dev-$DeveloperName-monthly-budget"
+        BudgetType  = "COST"
+        TimeUnit    = "MONTHLY"
         BudgetLimit = @{
             Amount = $BudgetLimit
-            Unit = "USD"
+            Unit   = "USD"
         }
         CostFilters = @{
             LinkedAccount = @($AccountId)
@@ -30,37 +30,37 @@ try {
     $Notifications = @(
         @{
             Notification = @{
-                NotificationType = "ACTUAL"
+                NotificationType   = "ACTUAL"
                 ComparisonOperator = "GREATER_THAN"
-                Threshold = 80
-                ThresholdType = "PERCENTAGE"
+                Threshold          = 80
+                ThresholdType      = "PERCENTAGE"
             }
-            Subscribers = @(
+            Subscribers  = @(
                 @{
                     SubscriptionType = "EMAIL"
-                    Address = $DeveloperEmail
+                    Address          = $DeveloperEmail
                 },
                 @{
                     SubscriptionType = "EMAIL"
-                    Address = $AdminEmail
+                    Address          = $AdminEmail
                 }
             )
         },
         @{
             Notification = @{
-                NotificationType = "FORECASTED"
+                NotificationType   = "FORECASTED"
                 ComparisonOperator = "GREATER_THAN"
-                Threshold = 90
-                ThresholdType = "PERCENTAGE"
+                Threshold          = 90
+                ThresholdType      = "PERCENTAGE"
             }
-            Subscribers = @(
+            Subscribers  = @(
                 @{
                     SubscriptionType = "EMAIL"
-                    Address = $DeveloperEmail
+                    Address          = $DeveloperEmail
                 },
                 @{
                     SubscriptionType = "EMAIL"
-                    Address = $AdminEmail
+                    Address          = $AdminEmail
                 }
             )
         }
@@ -73,23 +73,27 @@ try {
     $Budget | Out-File -FilePath $BudgetFile -Encoding UTF8
     $Notifications | Out-File -FilePath $NotificationsFile -Encoding UTF8
     
-    # Create budget
+    # Create budget - allow it to fail if already exists
+    $ErrorActionPreference = "Continue"
     aws budgets create-budget `
         --account-id $AccountId `
         --budget "file://$BudgetFile" `
-        --notifications-with-subscribers "file://$NotificationsFile" 2>$null
+        --notifications-with-subscribers "file://$NotificationsFile" 2>&1 | Out-Null
     
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "Budget may already exist" -ForegroundColor Yellow
-    } else {
-        Write-Host "Budget created successfully" -ForegroundColor Green
+        Write-Host "  Budget may already exist, continuing..." -ForegroundColor Yellow
     }
+    else {
+        Write-Host "  Budget created successfully" -ForegroundColor Green
+    }
+    $ErrorActionPreference = "Stop"
     
     # Clean up
     Remove-Item $BudgetFile -ErrorAction SilentlyContinue
     Remove-Item $NotificationsFile -ErrorAction SilentlyContinue
     
-} catch {
+}
+catch {
     Write-Host "Error: $_" -ForegroundColor Red
     exit 1
 }

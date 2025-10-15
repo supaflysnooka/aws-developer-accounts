@@ -39,28 +39,35 @@ try {
     $TrustPolicyFile = [System.IO.Path]::GetTempFileName()
     $TrustPolicy | Out-File -FilePath $TrustPolicyFile -Encoding UTF8
     
-    # Create role
+    # Create role - allow it to fail if already exists
+    $ErrorActionPreference = "Continue"
     aws iam create-role `
         --role-name DeveloperRole `
         --assume-role-policy-document "file://$TrustPolicyFile" `
-        --permissions-boundary "arn:aws:iam::$($AccountId):policy/DeveloperPermissionBoundary" 2>$null
+        --permissions-boundary "arn:aws:iam::$($AccountId):policy/DeveloperPermissionBoundary" 2>&1 | Out-Null
     
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "Role may already exist" -ForegroundColor Yellow
+        Write-Host "  Role may already exist, continuing..." -ForegroundColor Yellow
     }
     else {
-        Write-Host "Developer role created successfully" -ForegroundColor Green
+        Write-Host "  Developer role created successfully" -ForegroundColor Green
     }
+    $ErrorActionPreference = "Stop"
     
     # Attach PowerUserAccess policy
     Write-Host "Attaching PowerUserAccess policy..." -ForegroundColor Green
+    $ErrorActionPreference = "Continue"
     aws iam attach-role-policy `
         --role-name DeveloperRole `
-        --policy-arn "arn:aws:iam::aws:policy/PowerUserAccess" 2>$null
+        --policy-arn "arn:aws:iam::aws:policy/PowerUserAccess" 2>&1 | Out-Null
     
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "Policy may already be attached" -ForegroundColor Yellow
+        Write-Host "  Policy may already be attached, continuing..." -ForegroundColor Yellow
     }
+    else {
+        Write-Host "  Policy attached successfully" -ForegroundColor Green
+    }
+    $ErrorActionPreference = "Stop"
     
     # Clean up
     Remove-Item $TrustPolicyFile -ErrorAction SilentlyContinue

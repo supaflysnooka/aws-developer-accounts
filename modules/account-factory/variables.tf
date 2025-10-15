@@ -50,6 +50,12 @@ variable "aws_region" {
   default     = "us-west-2"
 }
 
+variable "aws_profile" {
+  description = "AWS profile to use for AWS CLI commands"
+  type        = string
+  default     = ""
+}
+
 variable "allowed_regions" {
   description = "List of AWS regions the developer can use"
   type        = list(string)

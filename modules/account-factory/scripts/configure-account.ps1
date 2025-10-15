@@ -33,18 +33,25 @@ try {
     # Create S3 bucket
     $BucketName = "bose-dev-$DeveloperName-terraform-state"
     
+    # Try to create bucket, but don't fail if it already exists
+    $ErrorActionPreference = "Continue"
     if ($AwsRegion -eq "us-east-1") {
-        aws s3api create-bucket --bucket $BucketName --region $AwsRegion 2>$null
-    } else {
+        aws s3api create-bucket --bucket $BucketName --region $AwsRegion 2>&1 | Out-Null
+    }
+    else {
         aws s3api create-bucket `
             --bucket $BucketName `
             --region $AwsRegion `
-            --create-bucket-configuration LocationConstraint=$AwsRegion 2>$null
+            --create-bucket-configuration LocationConstraint=$AwsRegion 2>&1 | Out-Null
     }
     
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "Bucket may already exist" -ForegroundColor Yellow
+        Write-Host "  Bucket may already exist, continuing..." -ForegroundColor Yellow
     }
+    else {
+        Write-Host "  Bucket created successfully" -ForegroundColor Green
+    }
+    $ErrorActionPreference = "Stop"
     
     Write-Host "Enabling versioning..." -ForegroundColor Green
     aws s3api put-bucket-versioning `
@@ -72,23 +79,32 @@ try {
         --public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
     
     Write-Host "Creating DynamoDB table..." -ForegroundColor Green
+    
+    # Try to create table, but don't fail if it already exists
+    $ErrorActionPreference = "Continue"
     aws dynamodb create-table `
         --table-name "bose-dev-$DeveloperName-terraform-locks" `
-        --attribute-definitions AttributeName=LockID,AttributeType=S `
-        --key-schema AttributeName=LockID,KeyType=HASH `
+        --attribute-definitions AttributeName=LockID, AttributeType=S `
+        --key-schema AttributeName=LockID, KeyType=HASH `
         --billing-mode PAY_PER_REQUEST `
-        --region $AwsRegion 2>$null
+        --region $AwsRegion 2>&1 | Out-Null
     
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "Table may already exist" -ForegroundColor Yellow
+        Write-Host "  Table may already exist, continuing..." -ForegroundColor Yellow
     }
+    else {
+        Write-Host "  Table created successfully" -ForegroundColor Green
+    }
+    $ErrorActionPreference = "Stop"
     
     Write-Host "Account configuration complete!" -ForegroundColor Green
     
-} catch {
+}
+catch {
     Write-Host "Error: $_" -ForegroundColor Red
     exit 1
-} finally {
+}
+finally {
     # Clean up environment variables
     Remove-Item Env:\AWS_ACCESS_KEY_ID -ErrorAction SilentlyContinue
     Remove-Item Env:\AWS_SECRET_ACCESS_KEY -ErrorAction SilentlyContinue

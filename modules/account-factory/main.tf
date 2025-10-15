@@ -25,14 +25,11 @@ locals {
   is_windows = substr(pathexpand("~"), 0, 1) == "/" ? false : true
   is_unix    = !local.is_windows
   
-  # Script interpreter based on OS
-  shell_interpreter = local.is_windows ? ["PowerShell", "-Command"] : ["/bin/bash", "-c"]
+  # Script file extension based on OS
+  script_ext = local.is_windows ? "ps1" : "sh"
   
-  # Command separators
-  cmd_separator = local.is_windows ? ";" : "&&"
-  
-  # AWS CLI credential export method
-  aws_cred_export = local.is_windows ? "$env:" : "export "
+  # Script interpreter based on OS - for file execution
+  shell_interpreter = local.is_windows ? ["PowerShell", "-ExecutionPolicy", "Bypass", "-File"] : ["/bin/bash"]
 }
 
 # Create the developer account
@@ -61,9 +58,20 @@ resource "time_sleep" "account_setup" {
   create_duration = "60s"
 }
 
+# Generate configure-account script
+resource "local_file" "configure_account_script" {
+  content = templatefile("${path.module}/scripts/configure-account.${local.script_ext}", {
+    account_id     = aws_organizations_account.developer_account.id
+    developer_name = var.developer_name
+    aws_region     = var.aws_region
+  })
+  
+  filename = "${path.root}/.terraform/tmp/configure-account-${var.developer_name}.${local.script_ext}"
+}
+
 # Configure account resources using AWS CLI with assumed role
 resource "null_resource" "configure_account" {
-  depends_on = [time_sleep.account_setup]
+  depends_on = [time_sleep.account_setup, local_file.configure_account_script]
   
   triggers = {
     account_id = aws_organizations_account.developer_account.id
@@ -71,41 +79,12 @@ resource "null_resource" "configure_account" {
   }
   
   provisioner "local-exec" {
-    command = local.is_windows ? templatefile("${path.module}/scripts/configure-account.ps1", {
-      account_id     = aws_organizations_account.developer_account.id
-      developer_name = var.developer_name
-      aws_region     = var.aws_region
-    }) : templatefile("${path.module}/scripts/configure-account.sh", {
-      account_id     = aws_organizations_account.developer_account.id
-      developer_name = var.developer_name
-      aws_region     = var.aws_region
-    })
-    
+    command     = local_file.configure_account_script.filename
     interpreter = local.shell_interpreter
-  }
-}
-
-# Create IAM permission boundary
-resource "null_resource" "create_permission_boundary" {
-  depends_on = [null_resource.configure_account]
-  
-  triggers = {
-    account_id = aws_organizations_account.developer_account.id
-    policy     = local.permission_boundary_policy
-  }
-  
-  provisioner "local-exec" {
-    command = local.is_windows ? templatefile("${path.module}/scripts/create-permission-boundary.ps1", {
-      account_id     = aws_organizations_account.developer_account.id
-      developer_name = var.developer_name
-      policy_json    = jsonencode(jsondecode(local.permission_boundary_policy))
-    }) : templatefile("${path.module}/scripts/create-permission-boundary.sh", {
-      account_id     = aws_organizations_account.developer_account.id
-      developer_name = var.developer_name
-      policy_json    = local.permission_boundary_policy
-    })
     
-    interpreter = local.shell_interpreter
+    environment = {
+      AWS_PROFILE = var.aws_profile
+    }
   }
 }
 
@@ -182,32 +161,81 @@ locals {
   })
 }
 
+# Generate permission boundary script
+resource "local_file" "create_permission_boundary_script" {
+  content = templatefile("${path.module}/scripts/create-permission-boundary.${local.script_ext}", {
+    account_id     = aws_organizations_account.developer_account.id
+    developer_name = var.developer_name
+    policy_json    = local.is_windows ? jsonencode(jsondecode(local.permission_boundary_policy)) : local.permission_boundary_policy
+  })
+  
+  filename = "${path.root}/.terraform/tmp/create-permission-boundary-${var.developer_name}.${local.script_ext}"
+}
+
+# Create IAM permission boundary
+resource "null_resource" "create_permission_boundary" {
+  depends_on = [null_resource.configure_account, local_file.create_permission_boundary_script]
+  
+  triggers = {
+    account_id = aws_organizations_account.developer_account.id
+    policy     = local.permission_boundary_policy
+  }
+  
+  provisioner "local-exec" {
+    command     = local_file.create_permission_boundary_script.filename
+    interpreter = local.shell_interpreter
+    
+    environment = {
+      AWS_PROFILE = var.aws_profile
+    }
+  }
+}
+
+# Generate developer role script
+resource "local_file" "create_developer_role_script" {
+  content = templatefile("${path.module}/scripts/create-developer-role.${local.script_ext}", {
+    account_id            = aws_organizations_account.developer_account.id
+    developer_name        = var.developer_name
+    management_account_id = var.management_account_id
+  })
+  
+  filename = "${path.root}/.terraform/tmp/create-developer-role-${var.developer_name}.${local.script_ext}"
+}
+
 # Create developer role
 resource "null_resource" "create_developer_role" {
-  depends_on = [null_resource.create_permission_boundary]
+  depends_on = [null_resource.create_permission_boundary, local_file.create_developer_role_script]
   
   triggers = {
     account_id = aws_organizations_account.developer_account.id
   }
   
   provisioner "local-exec" {
-    command = local.is_windows ? templatefile("${path.module}/scripts/create-developer-role.ps1", {
-      account_id           = aws_organizations_account.developer_account.id
-      developer_name       = var.developer_name
-      management_account_id = var.management_account_id
-    }) : templatefile("${path.module}/scripts/create-developer-role.sh", {
-      account_id           = aws_organizations_account.developer_account.id
-      developer_name       = var.developer_name
-      management_account_id = var.management_account_id
-    })
-    
+    command     = local_file.create_developer_role_script.filename
     interpreter = local.shell_interpreter
+    
+    environment = {
+      AWS_PROFILE = var.aws_profile
+    }
   }
+}
+
+# Generate budget script
+resource "local_file" "create_budget_script" {
+  content = templatefile("${path.module}/scripts/create-budget.${local.script_ext}", {
+    account_id      = aws_organizations_account.developer_account.id
+    developer_name  = var.developer_name
+    budget_limit    = var.budget_limit
+    developer_email = var.developer_email
+    admin_email     = var.admin_email
+  })
+  
+  filename = "${path.root}/.terraform/tmp/create-budget-${var.developer_name}.${local.script_ext}"
 }
 
 # Create budget
 resource "null_resource" "create_budget" {
-  depends_on = [null_resource.configure_account]
+  depends_on = [null_resource.configure_account, local_file.create_budget_script]
   
   triggers = {
     account_id   = aws_organizations_account.developer_account.id
@@ -215,21 +243,12 @@ resource "null_resource" "create_budget" {
   }
   
   provisioner "local-exec" {
-    command = local.is_windows ? templatefile("${path.module}/scripts/create-budget.ps1", {
-      account_id     = aws_organizations_account.developer_account.id
-      developer_name = var.developer_name
-      budget_limit   = var.budget_limit
-      developer_email = var.developer_email
-      admin_email    = var.admin_email
-    }) : templatefile("${path.module}/scripts/create-budget.sh", {
-      account_id     = aws_organizations_account.developer_account.id
-      developer_name = var.developer_name
-      budget_limit   = var.budget_limit
-      developer_email = var.developer_email
-      admin_email    = var.admin_email
-    })
-    
+    command     = local_file.create_budget_script.filename
     interpreter = local.shell_interpreter
+    
+    environment = {
+      AWS_PROFILE = var.aws_profile
+    }
   }
 }
 

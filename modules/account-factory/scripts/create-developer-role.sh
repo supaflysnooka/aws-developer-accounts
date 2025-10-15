@@ -34,16 +34,31 @@ cat > /tmp/trust-policy-$DEVELOPER_NAME.json << TRUST
 }
 TRUST
 
+# Disable exit on error temporarily
+set +e
 aws iam create-role \
   --role-name DeveloperRole \
   --assume-role-policy-document file:///tmp/trust-policy-$DEVELOPER_NAME.json \
-  --permissions-boundary arn:aws:iam::$ACCOUNT_ID:policy/DeveloperPermissionBoundary || echo "Role may already exist"
+  --permissions-boundary arn:aws:iam::$ACCOUNT_ID:policy/DeveloperPermissionBoundary 2>&1 >/dev/null
+
+if [ $? -ne 0 ]; then
+  echo "  Role may already exist, continuing..."
+else
+  echo "  Developer role created successfully"
+fi
 
 echo "Attaching PowerUserAccess policy..."
 aws iam attach-role-policy \
   --role-name DeveloperRole \
-  --policy-arn arn:aws:iam::aws:policy/PowerUserAccess || echo "Policy may already be attached"
+  --policy-arn arn:aws:iam::aws:policy/PowerUserAccess 2>&1 >/dev/null
+
+if [ $? -ne 0 ]; then
+  echo "  Policy may already be attached, continuing..."
+else
+  echo "  Policy attached successfully"
+fi
+set -e
 
 rm /tmp/trust-policy-$DEVELOPER_NAME.json
 
-echo "Developer role created successfully"
+echo "Developer role configuration complete!"

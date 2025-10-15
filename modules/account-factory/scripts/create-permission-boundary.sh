@@ -22,11 +22,20 @@ cat > /tmp/permission-boundary-$DEVELOPER_NAME.json << 'POLICY'
 ${policy_json}
 POLICY
 
+# Disable exit on error temporarily
+set +e
 aws iam create-policy \
   --policy-name DeveloperPermissionBoundary \
   --policy-document file:///tmp/permission-boundary-$DEVELOPER_NAME.json \
-  --description "Permission boundary for developer accounts" || echo "Policy may already exist"
+  --description "Permission boundary for developer accounts" 2>&1 >/dev/null
+
+if [ $? -ne 0 ]; then
+  echo "  Policy may already exist, continuing..."
+else
+  echo "  Permission boundary created successfully"
+fi
+set -e
 
 rm /tmp/permission-boundary-$DEVELOPER_NAME.json
 
-echo "Permission boundary created successfully"
+echo "Permission boundary policy complete!"

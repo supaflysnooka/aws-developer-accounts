@@ -28,25 +28,30 @@ try {
     $TempFile = [System.IO.Path]::GetTempFileName()
     $PolicyJson | Out-File -FilePath $TempFile -Encoding UTF8
     
-    # Create policy
+    # Create policy - allow it to fail if already exists
+    $ErrorActionPreference = "Continue"
     aws iam create-policy `
         --policy-name DeveloperPermissionBoundary `
         --policy-document "file://$TempFile" `
-        --description "Permission boundary for developer accounts" 2>$null
+        --description "Permission boundary for developer accounts" 2>&1 | Out-Null
     
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "Policy may already exist" -ForegroundColor Yellow
-    } else {
-        Write-Host "Permission boundary created successfully" -ForegroundColor Green
+        Write-Host "  Policy may already exist, continuing..." -ForegroundColor Yellow
     }
+    else {
+        Write-Host "  Permission boundary created successfully" -ForegroundColor Green
+    }
+    $ErrorActionPreference = "Stop"
     
     # Clean up temp file
     Remove-Item $TempFile -ErrorAction SilentlyContinue
     
-} catch {
+}
+catch {
     Write-Host "Error: $_" -ForegroundColor Red
     exit 1
-} finally {
+}
+finally {
     Remove-Item Env:\AWS_ACCESS_KEY_ID -ErrorAction SilentlyContinue
     Remove-Item Env:\AWS_SECRET_ACCESS_KEY -ErrorAction SilentlyContinue
     Remove-Item Env:\AWS_SESSION_TOKEN -ErrorAction SilentlyContinue

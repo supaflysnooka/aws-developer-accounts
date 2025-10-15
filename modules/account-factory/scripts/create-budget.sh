@@ -68,12 +68,21 @@ cat > /tmp/notifications-$DEVELOPER_NAME.json << NOTIF
 ]
 NOTIF
 
+# Disable exit on error temporarily
+set +e
 aws budgets create-budget \
   --account-id $ACCOUNT_ID \
   --budget file:///tmp/budget-$DEVELOPER_NAME.json \
-  --notifications-with-subscribers file:///tmp/notifications-$DEVELOPER_NAME.json || echo "Budget may already exist"
+  --notifications-with-subscribers file:///tmp/notifications-$DEVELOPER_NAME.json 2>&1 >/dev/null
+
+if [ $? -ne 0 ]; then
+  echo "  Budget may already exist, continuing..."
+else
+  echo "  Budget created successfully"
+fi
+set -e
 
 rm /tmp/budget-$DEVELOPER_NAME.json
 rm /tmp/notifications-$DEVELOPER_NAME.json
 
-echo "Budget created successfully"
+echo "Budget configuration complete!"
