@@ -10,7 +10,7 @@ terraform {
   backend "s3" {
     bucket         = "boseprofessional-org-terraform-state"
     key            = "dev-accounts/terraform.tfstate"
-    region         = "us-west-2"
+    region         = "us-east-2"
     dynamodb_table = "boseprofessional-org-terraform-locks"
     encrypt        = true
    # profile        = "AdministratorAccess-816648956019"
@@ -58,7 +58,7 @@ module "developer_accounts" {
 variable "aws_region" {
   description = "Primary AWS region"
   type        = string
-  default     = "us-west-2"
+  default     = "us-east-2"
 }
 
 # Outputs

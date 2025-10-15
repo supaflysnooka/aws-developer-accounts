@@ -47,7 +47,7 @@ variable "management_account_id" {
 variable "aws_region" {
   description = "Primary AWS region"
   type        = string
-  default     = "us-west-2"
+  default     = "us-east-2"
 }
 
 variable "aws_profile" {
@@ -58,7 +58,7 @@ variable "aws_profile" {
 variable "allowed_regions" {
   description = "List of AWS regions the developer can use"
   type        = list(string)
-  default     = ["us-east-1", "us-west-2"]
+  default     = ["us-east-1", "us-east-2"]
 }
 
 variable "allowed_instance_types" {

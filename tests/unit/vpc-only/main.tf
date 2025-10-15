@@ -9,7 +9,7 @@ terraform {
 }
 
 provider "aws" {
-  region = "us-west-2"
+  region = "us-east-2"
 }
 
 module "test_vpc" {
@@ -17,7 +17,7 @@ module "test_vpc" {
   
   vpc_name           = "test-vpc"
   vpc_cidr          = "10.100.0.0/16"
-  availability_zones = ["usw2-az1", "usw2-az2"]
+  availability_zones = ["use2-az1", "use2-az2"]
   
   enable_nat_gateway = true
   single_nat_gateway = true
