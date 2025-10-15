@@ -1,15 +1,13 @@
-# modules/account-factory/scripts/create-permission-boundary.ps1
-# Create IAM permission boundary policy
+# modules/account-factory/scripts/create-developer-role.ps1
+# Create developer IAM role
 
 $ErrorActionPreference = "Stop"
 
 $AccountId = "${account_id}"
 $DeveloperName = "${developer_name}"
-$PolicyJson = @'
-${policy_json}
-'@
+$ManagementAccountId = "${management_account_id}"
 
-Write-Host "Creating permission boundary policy..." -ForegroundColor Cyan
+Write-Host "Creating developer role..." -ForegroundColor Cyan
 
 try {
     # Assume role
@@ -24,29 +22,55 @@ try {
     $env:AWS_SECRET_ACCESS_KEY = $Creds.Credentials.SecretAccessKey
     $env:AWS_SESSION_TOKEN = $Creds.Credentials.SessionToken
     
-    # Save policy to temp file
-    $TempFile = [System.IO.Path]::GetTempFileName()
-    $PolicyJson | Out-File -FilePath $TempFile -Encoding UTF8
+    # Create trust policy
+    $TrustPolicy = @{
+        Version   = "2012-10-17"
+        Statement = @(
+            @{
+                Effect    = "Allow"
+                Principal = @{
+                    AWS = "arn:aws:iam::$($ManagementAccountId):root"
+                }
+                Action    = "sts:AssumeRole"
+            }
+        )
+    } | ConvertTo-Json -Depth 10
     
-    # Create policy
-    aws iam create-policy `
-        --policy-name DeveloperPermissionBoundary `
-        --policy-document "file://$TempFile" `
-        --description "Permission boundary for developer accounts" 2>$null
+    $TrustPolicyFile = [System.IO.Path]::GetTempFileName()
+    $TrustPolicy | Out-File -FilePath $TrustPolicyFile -Encoding UTF8
+    
+    # Create role
+    aws iam create-role `
+        --role-name DeveloperRole `
+        --assume-role-policy-document "file://$TrustPolicyFile" `
+        --permissions-boundary "arn:aws:iam::$($AccountId):policy/DeveloperPermissionBoundary" 2>$null
     
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "Policy may already exist" -ForegroundColor Yellow
-    } else {
-        Write-Host "Permission boundary created successfully" -ForegroundColor Green
+        Write-Host "Role may already exist" -ForegroundColor Yellow
+    }
+    else {
+        Write-Host "Developer role created successfully" -ForegroundColor Green
     }
     
-    # Clean up temp file
-    Remove-Item $TempFile -ErrorAction SilentlyContinue
+    # Attach PowerUserAccess policy
+    Write-Host "Attaching PowerUserAccess policy..." -ForegroundColor Green
+    aws iam attach-role-policy `
+        --role-name DeveloperRole `
+        --policy-arn "arn:aws:iam::aws:policy/PowerUserAccess" 2>$null
     
-} catch {
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Policy may already be attached" -ForegroundColor Yellow
+    }
+    
+    # Clean up
+    Remove-Item $TrustPolicyFile -ErrorAction SilentlyContinue
+    
+}
+catch {
     Write-Host "Error: $_" -ForegroundColor Red
     exit 1
-} finally {
+}
+finally {
     Remove-Item Env:\AWS_ACCESS_KEY_ID -ErrorAction SilentlyContinue
     Remove-Item Env:\AWS_SECRET_ACCESS_KEY -ErrorAction SilentlyContinue
     Remove-Item Env:\AWS_SESSION_TOKEN -ErrorAction SilentlyContinue
